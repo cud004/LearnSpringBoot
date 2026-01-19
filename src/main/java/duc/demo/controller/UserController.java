@@ -16,6 +16,7 @@ import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -155,11 +156,27 @@ public class UserController {
     public ResponseData<?> advanceSearchByCriteria(@RequestParam(defaultValue = "0", required = false)
                                                                 int pageNo, @RequestParam(defaultValue = "10", required = false) int pageSize,
                                                                 @RequestParam(required = false) String sortBy,
+                                                                @RequestParam(required = false) String address,
                                                                 @RequestParam(required = false) String... search){
         log.info("Advance search with Criteria and paging and sorting");
 
-        return new ResponseData<>(HttpStatus.OK.value(), "users", userService.advanceSearchByCriteria(pageNo, pageSize, sortBy, search ));
+        return new ResponseData<>(HttpStatus.OK.value(), "users", userService.advanceSearchByCriteria(pageNo, pageSize, sortBy, address, search ));
+
+    }
+//Advance search By specification
+    @Operation(summary = "Get all users with sort by column and search by specification", description = "API Get all users with sort and search with specification advance User and address")
+    @GetMapping("/advance-search-by-specification")
+    public ResponseData<?> advanceSearchBySpecification( Pageable pageable,
+                                                   @RequestParam(required = false) String [] user,
+                                                   @RequestParam(required = false) String [] address ){
+        log.info("Advance search with specification and paging and sorting");
+
+        return new ResponseData<>(HttpStatus.OK.value(), "users", userService.advanceSearchBySpecification(pageable, user, address));
 
     }
 
+
+    public UserService getUserService() {
+        return userService;
+    }
 }

@@ -2,16 +2,14 @@ package duc.demo.repository;
 
 
 import duc.demo.dto.response.PageResponse;
+import duc.demo.model.Address;
 import duc.demo.model.User;
 import duc.demo.repository.criteria.SearchCriteria;
 import duc.demo.repository.criteria.UserSearchCriteriaConsumer;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.CriteriaQuery;
-import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.*;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
@@ -95,7 +93,7 @@ public class SearchRepository {
                 .items(page.stream().toList())
                 .build();
     }
-    public PageResponse<?> advanceSearchUser(int pageNo, int pageSize, String sortBy, String... search ){
+    public PageResponse<?> advanceSearchUser(int pageNo, int pageSize, String sortBy, String address, String... search ){
         //firstName:T, lastName:T
         List<SearchCriteria> criteriaList = new ArrayList<>();
 
@@ -112,9 +110,9 @@ public class SearchRepository {
         }
 
         //2. Lay ra so luong ban ghi va phan trang
-        List<User> users = getUsers(pageNo, pageSize, criteriaList, sortBy);
+        List<User> users = getUsers(pageNo, pageSize, criteriaList, sortBy, address);
 
-        Long totalElements = 1l;
+        Long totalElements = getTotalElements(criteriaList, address);
 
 
 
@@ -127,18 +125,71 @@ public class SearchRepository {
                 .build();
     }
 
-    private List<User> getUsers(int pageNo, int pageSize, List<SearchCriteria> criteriaList, String sortBy) {
+    private Long getTotalElements(List<SearchCriteria> criteriaList, String address) {
+        CriteriaBuilder criteriaBuilder = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Long> query = criteriaBuilder.createQuery(Long.class);
+        Root<User> root = query.from(User.class);
+
+        Predicate predicate = criteriaBuilder.conjunction();
+        UserSearchCriteriaConsumer searchConsumer = new UserSearchCriteriaConsumer(criteriaBuilder, predicate, root);
+        if (criteriaList != null) {
+            criteriaList.forEach(searchConsumer);
+            predicate = searchConsumer.getPredicate();
+        }
+        // 2. Xử lý tìm kiếm Address (trên tất cả các field)
+        if (StringUtils.hasLength(address)) {
+            // Join bảng Address (Mặc định là Inner Join: Chỉ đếm user CÓ địa chỉ phù hợp)
+            Join<User, Address> addressJoin = root.join("addresses");
+
+            // Chuẩn hóa chuỗi tìm kiếm về chữ thường để tìm không phân biệt hoa thường
+            String keyword = "%" + address.toLowerCase() + "%";
+
+            // Tạo Predicate cho từng trường String trong bảng Address
+            Predicate pApartment = criteriaBuilder.like(criteriaBuilder.lower(addressJoin.get("apartmentNumber")), keyword);
+            Predicate pFloor = criteriaBuilder.like(criteriaBuilder.lower(addressJoin.get("floor")), keyword);
+            Predicate pBuilding = criteriaBuilder.like(criteriaBuilder.lower(addressJoin.get("building")), keyword);
+            Predicate pStreetNumber = criteriaBuilder.like(criteriaBuilder.lower(addressJoin.get("streetNumber")), keyword);
+            Predicate pStreet = criteriaBuilder.like(criteriaBuilder.lower(addressJoin.get("street")), keyword);
+            Predicate pCity = criteriaBuilder.like(criteriaBuilder.lower(addressJoin.get("city")), keyword);
+            Predicate pCountry = criteriaBuilder.like(criteriaBuilder.lower(addressJoin.get("country")), keyword);
+
+            // Gom tất cả lại bằng OR: Chỉ cần trúng 1 trong các trường này là lấy
+            Predicate addressPredicate = criteriaBuilder.or(
+                    pApartment, pFloor, pBuilding, pStreetNumber, pStreet, pCity, pCountry
+            );
+
+            // Gom điều kiện User VÀ điều kiện Address lại
+            predicate = criteriaBuilder.and(predicate, addressPredicate);
+        }
+        query.select(criteriaBuilder.count(root));
+        query.where(predicate);
+
+        return entityManager.createQuery(query).getSingleResult();
+    }
+
+    private List<User> getUsers(int pageNo, int pageSize, List<SearchCriteria> criteriaList, String sortBy, String address) {
         CriteriaBuilder criteriaBuilder = entityManager.getCriteriaBuilder();
         CriteriaQuery<User> criteriaQuery = criteriaBuilder.createQuery(User.class);
         Root<User> root = criteriaQuery.from(User.class);
 
         //Xu li cac dieu kien tim kiem
-        Predicate predicate = criteriaBuilder.conjunction();
-        UserSearchCriteriaConsumer queryConsumer = new UserSearchCriteriaConsumer(criteriaBuilder, predicate, root);
-        criteriaList.forEach(queryConsumer);
-        predicate = queryConsumer.getPredicate();
+        Predicate userPredicate = criteriaBuilder.conjunction();
+        UserSearchCriteriaConsumer queryConsumer = new UserSearchCriteriaConsumer(criteriaBuilder, userPredicate, root);
 
-        criteriaQuery.where(predicate);
+        if(StringUtils.hasLength(address)){
+            Join<Address, User> addressUserJoin = root.join("addresses");
+            Predicate addressPredicate = criteriaBuilder.like(addressUserJoin.get("city"), "%%" + address + "%%");
+            //Tim kiem tren tat ca cac field cua Address thi lam sao
+            criteriaQuery.where(userPredicate, addressPredicate);
+        }
+        else{
+            criteriaList.forEach(queryConsumer);
+            userPredicate = queryConsumer.getPredicate();
+            criteriaQuery.where(userPredicate);
+        }
+
+
+
 
         //sort
         if(StringUtils.hasLength(sortBy)){

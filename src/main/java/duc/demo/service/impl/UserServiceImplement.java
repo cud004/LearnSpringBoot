@@ -9,7 +9,10 @@ import duc.demo.model.Address;
 import duc.demo.model.User;
 import duc.demo.repository.SearchRepository;
 import duc.demo.repository.UserRepository;
+import duc.demo.repository.specification.UserSpec;
+import duc.demo.repository.specification.UserSpecificationBuilder;
 import duc.demo.service.UserService;
+import duc.demo.util.Gender;
 import duc.demo.util.UserStatus;
 import duc.demo.util.UserType;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +21,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -213,8 +217,54 @@ public class UserServiceImplement implements UserService {
         }
 
     @Override
-    public PageResponse<?> advanceSearchByCriteria(int pageNo, int pageSize, String sortBy, String... search) {
-        return searchRepository.advanceSearchUser(pageNo, pageSize, sortBy, search);
+    public PageResponse<?> advanceSearchByCriteria(int pageNo, int pageSize, String sortBy, String address, String... search) {
+        return searchRepository.advanceSearchUser(pageNo, pageSize, sortBy, address ,search);
+    }
+
+    @Override
+    public PageResponse<?> advanceSearchBySpecification(Pageable pageable, String[] user, String[] address) {
+
+        Page<User> users = null;
+        List<User> list = new ArrayList<>();
+
+        if(user != null && address != null) {
+            //tim kiem tren bang user vaf address-> join table
+        }else if(user != null && address == null) {
+            // tim kiem tren bang user ma khong can join bang address
+
+//            Specification<User> spec = UserSpec.hasFirstName("d");
+//
+//            Specification<User> genderSpec = UserSpec.equalGender(Gender.MALE);
+//
+//            Specification<User> finalSpec = spec.and(genderSpec);
+            UserSpecificationBuilder builder = new UserSpecificationBuilder();
+//
+        for(String s: user) {
+            Pattern pattern = Pattern.compile("(\\w+?)([<:>~!])(.*)(\\p{Punct}?)(\\p{Punct}?)");
+            Matcher matcher = pattern.matcher(s);
+            if(matcher.find()) {
+                builder.with(matcher.group(1), matcher.group(2), matcher.group(3), matcher.group(4), matcher.group(5));
+            }
+        }
+
+            list = userRepository.findAll(builder.build());
+            return PageResponse.builder()
+                    .pageNo(pageable.getPageNumber())
+                    .pageSize(pageable.getPageSize())
+                    .totalPages(10)
+                    .items(list)
+                    .build();
+
+        } else {
+            users = userRepository.findAll(pageable);
+        }
+
+
+        return PageResponse.builder()
+                .pageNo(pageable.getPageNumber())
+                .totalPages(users.getTotalPages())
+                .items(list)
+                .build();
     }
 
     private Set<Address> convertToAddress(Set<AddressDTO> addresses) {

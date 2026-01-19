@@ -5,6 +5,7 @@ import duc.demo.dto.request.UserRequestDTO;
 import duc.demo.dto.response.PageResponse;
 import duc.demo.dto.response.UserDetailResponse;
 import duc.demo.util.UserStatus;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
@@ -22,6 +23,7 @@ public interface UserService {
     PageResponse<?> getAllUsersWithSortByMultipleColumn(int pageNo, int pageSize, String... sorts);
 
     PageResponse<?>getAllUsersWithSortByColumnAndSearch(int pageNo, int pageSize, String search, String sortBy );
-    PageResponse<?>advanceSearchByCriteria(int pageNo, int pageSize, String sortBy, String... search );
+    PageResponse<?>advanceSearchByCriteria(int pageNo, int pageSize, String sortBy, String address, String... search );
 
+    PageResponse<?> advanceSearchBySpecification(Pageable pageable, String[] user, String[] address);
 }
